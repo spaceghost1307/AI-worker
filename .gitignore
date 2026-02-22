@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Docker
+docker-compose.override.yml
+
+# Data and models (large files)
+data/*.csv
+data/*.json
+data/*.xlsx
+data/*.xls
+data/*.parquet
+*.gguf
+*.bin
+*.safetensors
+models/
+
+# Ollama model cache
+.ollama/
+
+# Qdrant data
+qdrant_data/
+
+# PostgreSQL data
+pgdata/
+
+# MinIO data
+minio_data/
+
+# n8n data
+n8n_data/
+
+# Redis data
+redis_data/
+
+# Grafana/Prometheus data
+grafana_data/
+prometheus_data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Jupyter
+.ipynb_checkpoints/
