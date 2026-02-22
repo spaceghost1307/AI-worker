@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Worker - Session Manager</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>AI Worker</h1>
+      <p class="subtitle">Session Manager &amp; Teleport Recovery</p>
+    </header>
+
+    <div class="toolbar">
+      <button id="btn-new-session" class="btn btn-primary">New Session</button>
+      <button id="btn-refresh" class="btn">Refresh</button>
+      <div class="filter-group">
+        <label for="status-filter">Filter:</label>
+        <select id="status-filter">
+          <option value="">All</option>
+          <option value="active">Active</option>
+          <option value="suspended">Suspended</option>
+          <option value="recoverable">Recoverable</option>
+          <option value="terminated">Terminated</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Current Session Panel -->
+    <section id="current-session-panel" class="panel hidden">
+      <h2>Current Session</h2>
+      <div id="current-session-info"></div>
+      <div class="session-actions">
+        <button id="btn-checkpoint" class="btn btn-sm">Create Checkpoint</button>
+        <button id="btn-add-operation" class="btn btn-sm">Add Operation</button>
+        <button id="btn-suspend" class="btn btn-sm btn-warning">Suspend</button>
+        <button id="btn-recoverable" class="btn btn-sm btn-warning">Mark Recoverable</button>
+        <button id="btn-terminate" class="btn btn-sm btn-danger">Terminate</button>
+      </div>
+    </section>
+
+    <!-- Sessions List -->
+    <section id="sessions-panel" class="panel">
+      <h2>Sessions</h2>
+      <div id="sessions-list" class="sessions-list">
+        <p class="empty-state">Loading sessions...</p>
+      </div>
+    </section>
+
+    <!-- Modals -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+      <div class="modal" id="modal-content"></div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast-container"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
