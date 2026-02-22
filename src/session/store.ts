@@ -45,10 +45,14 @@ export function listSessions(filter?: SessionStatus): SessionMetadata[] {
   const sessions: SessionMetadata[] = [];
 
   for (const file of files) {
-    const raw = fs.readFileSync(path.join(SESSIONS_DIR, file), 'utf-8');
-    const snapshot = JSON.parse(raw) as SessionSnapshot;
-    if (!filter || snapshot.metadata.status === filter) {
-      sessions.push(snapshot.metadata);
+    try {
+      const raw = fs.readFileSync(path.join(SESSIONS_DIR, file), 'utf-8');
+      const snapshot = JSON.parse(raw) as SessionSnapshot;
+      if (!filter || snapshot.metadata.status === filter) {
+        sessions.push(snapshot.metadata);
+      }
+    } catch {
+      // File may have been deleted between readdir and readFile
     }
   }
 

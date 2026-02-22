@@ -3,13 +3,11 @@ import cors from 'cors';
 import path from 'path';
 import { SessionManager, SessionStatus } from '../session';
 import { TeleportHandler } from '../teleport';
-import { Worker } from '../worker';
 
 export function createServer(port: number = 3000) {
   const app = express();
   const sessionManager = new SessionManager();
   const teleportHandler = new TeleportHandler(sessionManager);
-  let activeWorker: Worker | null = null;
 
   app.use(cors());
   app.use(express.json());
@@ -38,9 +36,11 @@ export function createServer(port: number = 3000) {
     const dir = workingDirectory || process.cwd();
     const tagList = tags || [];
 
-    const worker = new Worker(sessionManager);
-    activeWorker = worker;
-    const session = worker.start({ workingDirectory: dir, tags: tagList });
+    const session = sessionManager.createSession(dir, tagList);
+    sessionManager.checkpoint(
+      { phase: 'initialized' },
+      ['Session created via web UI', `Directory: ${dir}`]
+    );
 
     res.json({ session });
   });
@@ -80,7 +80,6 @@ export function createServer(port: number = 3000) {
   app.post('/api/sessions/terminate', (_req, res) => {
     try {
       sessionManager.terminate();
-      activeWorker = null;
       res.json({ success: true, message: 'Session terminated' });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -114,9 +113,10 @@ export function createServer(port: number = 3000) {
     if (result.success) {
       const snapshot = sessionManager.getCurrentSession();
       if (snapshot) {
-        const worker = new Worker(sessionManager);
-        activeWorker = worker;
-        worker.resume(snapshot);
+        sessionManager.checkpoint(
+          { phase: 'resumed', previousCheckpoints: snapshot.metadata.checkpoints.length },
+          ['Session resumed via web teleport']
+        );
       }
     }
 
