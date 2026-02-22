@@ -11,11 +11,13 @@ room type, materials, fixtures, dimensions, and condition notes.
 
 from __future__ import annotations
 
-from typing import Any
+import logging
 
 from pydantic import BaseModel
 
 from src.vision.pipeline import VisionPipeline
+
+logger = logging.getLogger(__name__)
 
 
 class RoomAssessment(BaseModel):
@@ -46,19 +48,51 @@ class ImageAnalysisAgent:
         Returns:
             Structured room assessment with materials, fixtures, and dimensions.
         """
-        # TODO: Run Florence-2 detection
-        # TODO: Run Depth Anything V3 for dimensions
-        # TODO: Run Qwen2.5-VL for detailed analysis
-        # TODO: Merge results into RoomAssessment
+        try:
+            result = self.pipeline.process(photo_path)
+        except Exception as exc:
+            logger.warning("Vision pipeline failed for %s: %s", photo_path, exc)
+            return RoomAssessment(
+                room_type="unknown",
+                dimensions_estimate={},
+                materials=[],
+                fixtures=[],
+                surfaces=[],
+                condition_notes=[f"Analysis failed: {exc}"],
+                demolition_items=[],
+                confidence=0.0,
+            )
+
+        scene = result.scene_analysis
+
+        # Merge depth dimensions with scene analysis dimensions
+        dimensions: dict[str, float] = {}
+        if result.depth_map and result.depth_map.get("confidence", 0) > 0:
+            dimensions = {
+                "width_ft": result.depth_map.get("width_ft", 0.0),
+                "length_ft": result.depth_map.get("length_ft", 0.0),
+                "height_ft": result.depth_map.get("height_ft", 8.0),
+                "floor_area_sq_ft": result.depth_map.get("floor_area_sq_ft", 0.0),
+            }
+        # Override with scene analysis dimensions if available (vision model may be more accurate)
+        scene_dims = scene.get("dimensions", {})
+        if scene_dims:
+            for key in ("width_ft", "length_ft", "height_ft"):
+                val = scene_dims.get(key)
+                if val and val > 0:
+                    dimensions[key] = val
+            if dimensions.get("width_ft", 0) > 0 and dimensions.get("length_ft", 0) > 0:
+                dimensions["floor_area_sq_ft"] = dimensions["width_ft"] * dimensions["length_ft"]
+
         return RoomAssessment(
-            room_type="unknown",
-            dimensions_estimate={},
-            materials=[],
-            fixtures=[],
-            surfaces=[],
-            condition_notes=[],
-            demolition_items=[],
-            confidence=0.0,
+            room_type=scene.get("room_type", "unknown"),
+            dimensions_estimate=dimensions,
+            materials=scene.get("materials", []),
+            fixtures=scene.get("fixtures", []),
+            surfaces=scene.get("surfaces", []),
+            condition_notes=scene.get("condition_notes", []),
+            demolition_items=scene.get("demolition_items", []),
+            confidence=result.confidence,
         )
 
     def analyze_project_photos(self, photo_paths: list[str]) -> list[RoomAssessment]:

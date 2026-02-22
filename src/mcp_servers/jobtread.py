@@ -12,11 +12,54 @@ This MCP server exposes JobTread operations as callable tools for AI agents:
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
+import httpx
 from mcp.server.fastmcp import FastMCP
 
+logger = logging.getLogger(__name__)
+
 mcp = FastMCP("jobtread")
+
+_settings: dict[str, str] = {}
+_client: httpx.Client | None = None
+
+
+def _get_client() -> httpx.Client:
+    """Get or create the HTTP client for JobTread API."""
+    global _client
+    if _client is None:
+        from src.config.settings import Settings
+
+        settings = Settings()
+        _settings["api_key"] = settings.jobtread.api_key
+        _settings["api_url"] = settings.jobtread.api_url
+        _client = httpx.Client(
+            headers={
+                "Authorization": f"Bearer {_settings['api_key']}",
+                "Content-Type": "application/json",
+            },
+            timeout=30.0,
+        )
+    return _client
+
+
+def _graphql(query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Execute a GraphQL query against the JobTread API."""
+    client = _get_client()
+    payload: dict[str, Any] = {"query": query}
+    if variables:
+        payload["variables"] = variables
+
+    response = client.post(_settings["api_url"], json=payload)
+    response.raise_for_status()
+    result = response.json()
+
+    if "errors" in result:
+        logger.error("JobTread GraphQL errors: %s", result["errors"])
+
+    return result.get("data", {})
 
 
 @mcp.tool()
@@ -30,9 +73,26 @@ def list_jobs(status: str = "active", limit: int = 20) -> list[dict[str, Any]]:
     Returns:
         List of job summaries with ID, name, client, status, and dates.
     """
-    # TODO: Query JobTread GraphQL API
-    # TODO: Map response to standardized format
-    return []
+    query = """
+    query ListJobs($status: String, $limit: Int) {
+        jobs(filter: { status: $status }, limit: $limit) {
+            id
+            name
+            status
+            clientName
+            projectType
+            createdAt
+            updatedAt
+            totalAmount
+        }
+    }
+    """
+    variables: dict[str, Any] = {"limit": limit}
+    if status != "all":
+        variables["status"] = status
+
+    data = _graphql(query, variables)
+    return data.get("jobs", [])
 
 
 @mcp.tool()
@@ -45,8 +105,46 @@ def get_job_details(job_id: str) -> dict[str, Any]:
     Returns:
         Complete job details with contacts, line items, tasks, and documents.
     """
-    # TODO: Query JobTread GraphQL API for full job data
-    return {}
+    query = """
+    query GetJob($jobId: ID!) {
+        job(id: $jobId) {
+            id
+            name
+            status
+            clientName
+            clientEmail
+            projectType
+            description
+            address
+            createdAt
+            updatedAt
+            totalAmount
+            lineItems {
+                id
+                description
+                category
+                quantity
+                unit
+                unitCost
+                total
+            }
+            tasks {
+                id
+                name
+                status
+                dueDate
+            }
+            documents {
+                id
+                name
+                type
+                url
+            }
+        }
+    }
+    """
+    data = _graphql(query, {"jobId": job_id})
+    return data.get("job", {})
 
 
 @mcp.tool()
@@ -67,8 +165,26 @@ def create_job(
     Returns:
         Created job details with ID.
     """
-    # TODO: Create job via JobTread GraphQL API
-    return {}
+    mutation = """
+    mutation CreateJob($input: CreateJobInput!) {
+        createJob(input: $input) {
+            id
+            name
+            status
+            clientName
+        }
+    }
+    """
+    variables = {
+        "input": {
+            "name": name,
+            "clientName": client_name,
+            "description": description,
+            "projectType": project_type,
+        }
+    }
+    data = _graphql(mutation, variables)
+    return data.get("createJob", {})
 
 
 @mcp.tool()
@@ -82,9 +198,41 @@ def sync_estimate(job_id: str, estimate: dict[str, Any]) -> dict[str, Any]:
     Returns:
         Sync result with created line item IDs.
     """
-    # TODO: Map estimate line items to JobTread format
-    # TODO: Create/update line items via API
-    return {}
+    line_items = estimate.get("line_items", [])
+    created_ids = []
+
+    mutation = """
+    mutation AddLineItem($jobId: ID!, $input: CreateLineItemInput!) {
+        createLineItem(jobId: $jobId, input: $input) {
+            id
+            description
+        }
+    }
+    """
+
+    for item in line_items:
+        variables = {
+            "jobId": job_id,
+            "input": {
+                "description": item.get("description", ""),
+                "category": item.get("category", ""),
+                "quantity": item.get("quantity", 0),
+                "unit": item.get("unit", ""),
+                "unitCost": item.get("unit_cost", 0),
+                "total": item.get("total", 0),
+            },
+        }
+        data = _graphql(mutation, variables)
+        created = data.get("createLineItem", {})
+        if created.get("id"):
+            created_ids.append(created["id"])
+
+    return {
+        "job_id": job_id,
+        "line_items_created": len(created_ids),
+        "line_item_ids": created_ids,
+        "total": estimate.get("total", 0),
+    }
 
 
 @mcp.tool()
@@ -98,8 +246,19 @@ def search_contacts(query: str, limit: int = 10) -> list[dict[str, Any]]:
     Returns:
         Matching contacts.
     """
-    # TODO: Search JobTread contacts via API
-    return []
+    gql_query = """
+    query SearchContacts($query: String!, $limit: Int) {
+        contacts(search: $query, limit: $limit) {
+            id
+            name
+            email
+            phone
+            company
+        }
+    }
+    """
+    data = _graphql(gql_query, {"query": query, "limit": limit})
+    return data.get("contacts", [])
 
 
 if __name__ == "__main__":

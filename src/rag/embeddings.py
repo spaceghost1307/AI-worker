@@ -9,8 +9,6 @@ Upgrade path: mxbai-embed-large (1024-dim, 1.2GB, higher accuracy)
 
 from __future__ import annotations
 
-from typing import Any
-
 import httpx
 
 
