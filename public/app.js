@@ -5,6 +5,10 @@ async function api(method, path, body) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(API + path, opts);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || res.statusText);
+  }
   return res.json();
 }
 
@@ -49,15 +53,25 @@ function formatTime(ts) {
 
 // --- Render ---
 async function loadSessions() {
-  const filter = document.getElementById('status-filter').value;
-  const qs = filter ? `?status=${filter}` : '';
-  const data = await api('GET', '/api/sessions' + qs);
-  renderSessionsList(data.sessions || []);
+  try {
+    const filter = document.getElementById('status-filter').value;
+    const qs = filter ? `?status=${filter}` : '';
+    const data = await api('GET', '/api/sessions' + qs);
+    renderSessionsList(data.sessions || []);
+  } catch (err) {
+    document.getElementById('sessions-list').innerHTML =
+      '<p class="empty-state">Failed to load sessions. Is the server running?</p>';
+  }
 }
 
 async function loadCurrentSession() {
-  const data = await api('GET', '/api/sessions/current');
-  renderCurrentSession(data.session);
+  try {
+    const data = await api('GET', '/api/sessions/current');
+    renderCurrentSession(data.session);
+  } catch (err) {
+    // Silently hide current session panel on error
+    document.getElementById('current-session-panel').classList.add('hidden');
+  }
 }
 
 function renderCurrentSession(session) {
@@ -179,15 +193,19 @@ document.getElementById('btn-new-session').addEventListener('click', () => {
 });
 
 async function createSession() {
-  const dir = document.getElementById('input-dir').value || process.cwd;
+  const dir = document.getElementById('input-dir').value || '.';
   const tags = document.getElementById('input-tags').value
     .split(',').map(t => t.trim()).filter(Boolean);
   hideModal();
-  const data = await api('POST', '/api/sessions', { workingDirectory: dir || '.', tags });
-  if (data.session) {
-    toast('Session created', 'success');
-  } else {
-    toast(data.error || 'Failed to create session', 'error');
+  try {
+    const data = await api('POST', '/api/sessions', { workingDirectory: dir, tags });
+    if (data.session) {
+      toast('Session created', 'success');
+    } else {
+      toast(data.error || 'Failed to create session', 'error');
+    }
+  } catch (err) {
+    toast('Failed to create session: ' + err.message, 'error');
   }
   refresh();
 }
