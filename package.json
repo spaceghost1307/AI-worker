@@ -9,11 +9,17 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
+    "serve": "node dist/serve.js",
     "dev": "ts-node src/index.ts",
+    "dev:web": "ts-node src/serve.ts",
     "test": "jest --config jest.config.js"
   },
   "dependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "commander": "^12.1.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
     "uuid": "^10.0.0"
   },
   "devDependencies": {
